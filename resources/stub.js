@@ -1,0 +1,1 @@
+"use strict";(()=>{(function(){var e=window;if(e.__erq)return;var r=[];e.__erq=r;function o(n,i){r.length<30&&r.push([n,i])}window.addEventListener("error",function(n){!n.error&&n.message==="Script error."||o("error",n.error||n.message)},!0),window.addEventListener("unhandledrejection",function(n){o("error",n.reason)})})();})();

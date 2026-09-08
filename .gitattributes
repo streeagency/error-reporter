@@ -1,0 +1,5 @@
+# Slim dist installs: composer downloads of tagged releases skip the test harness.
+/tests            export-ignore
+/phpunit.xml      export-ignore
+/.gitignore       export-ignore
+/.gitattributes   export-ignore

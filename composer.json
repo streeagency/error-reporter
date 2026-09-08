@@ -1,0 +1,31 @@
+{
+    "name": "stree/error-reporter",
+    "description": "Laravel client for ErrorReporter — reports exceptions to the central API without ever breaking the host application.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": ["error-reporting", "monitoring", "laravel"],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/http": "^11.0 || ^12.0 || ^13.0",
+        "guzzlehttp/guzzle": "^7.5"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0 || ^10.0 || ^11.0",
+        "opis/json-schema": "^2.4"
+    },
+    "autoload": {
+        "psr-4": { "Stree\\ErrorReporter\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Stree\\ErrorReporter\\Tests\\": "tests/" }
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["Stree\\ErrorReporter\\ErrorReporterServiceProvider"],
+            "aliases": { "ErrorReporter": "Stree\\ErrorReporter\\Facades\\ErrorReporter" }
+        }
+    },
+    "config": { "sort-packages": true },
+    "minimum-stability": "stable"
+}

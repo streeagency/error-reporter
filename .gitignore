@@ -1,0 +1,8 @@
+/vendor/
+
+# A library commits no lock file — the consuming application owns dependency resolution.
+composer.lock
+
+.phpunit.result.cache
+.phpunit.cache/
+.DS_Store
