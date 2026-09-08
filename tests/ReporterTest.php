@@ -16,6 +16,34 @@ use Stree\ErrorReporter\Sanitizer;
 
 final class ReporterTest extends TestCase
 {
+    /**
+     * The @errorReporter directive renders the config the bundle initialises itself from,
+     * and both capture flags default to FALSE inside the SDK. Rendering the config without
+     * them produced a page that contained the stub, the config and the bundle — and still
+     * captured nothing. The public key must be there and the secret must not.
+     */
+    #[Test]
+    public function the_browser_snippet_turns_capture_on_and_never_carries_the_secret(): void
+    {
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', 'https://errors.stree.agency/sdk/1.0.0/sdk.js');
+
+        $html = app('error-reporter')->browserScripts();
+
+        preg_match('/window\\.__erConfig = (\\{.*?\\});/s', $html, $m);
+        $config = json_decode(html_entity_decode($m[1] ?? '', ENT_QUOTES), true);
+
+        $this->assertIsArray($config, 'the config must be valid JSON the bundle can read');
+        $this->assertTrue($config['captureExceptions'] ?? false);
+        $this->assertTrue($config['captureRejections'] ?? false);
+        $this->assertSame('pk_browser_key', $config['publicKey'] ?? null);
+
+        $this->assertStringNotContainsString('sk_test_key_1234567890', $html);
+        $this->assertStringContainsString('__erq', $html, 'the stub is inlined ahead of the bundle');
+        $this->assertStringContainsString('sdk/1.0.0/sdk.js', $html);
+    }
+
     #[Test]
     public function the_secret_key_travels_in_the_header_never_the_body(): void
     {

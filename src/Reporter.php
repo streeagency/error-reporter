@@ -130,11 +130,16 @@ final class Reporter
             }
 
             return view('error-reporter::scripts', [
+                // captureExceptions and captureRejections default to FALSE in the SDK,
+                // so they are sent explicitly: enabling browser reporting here IS the
+                // opt-in. Without them the bundle initialises and listens for nothing.
                 'config' => [
                     'apiUrl' => rtrim((string) $this->config['api_url'], '/'),
                     'publicKey' => (string) $browser['public_key'],
                     'environment' => (string) ($this->config['environment'] ?? 'production'),
                     'release' => $this->config['release'] ?? null,
+                    'captureExceptions' => true,
+                    'captureRejections' => true,
                 ],
                 'stub' => file_get_contents(__DIR__.'/../resources/stub.js') ?: '',
                 'sdkUrl' => $browser['sdk_url'] ?? null,
