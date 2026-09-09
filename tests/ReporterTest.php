@@ -44,6 +44,62 @@ final class ReporterTest extends TestCase
         $this->assertStringContainsString('sdk/1.0.0/sdk.js', $html);
     }
 
+    /**
+     * A browser-side fix has to reach installed sites. Each one pins its own immutable
+     * bundle URL, so without discovery a fix only lands where somebody remembered to edit
+     * the config — which, across client sites, is nowhere.
+     */
+    #[Test]
+    public function the_bundle_url_is_discovered_from_the_platform_when_none_is_configured(): void
+    {
+        Http::fake(['*/api/v1/sdk' => Http::response([
+            'version' => '1.0.2',
+            'url' => 'https://errors.stree.agency/sdk/1.0.2/sdk.js',
+        ])]);
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', null);
+
+        $html = app('error-reporter')->browserScripts();
+
+        $this->assertStringContainsString('sdk/1.0.2/sdk.js', $html);
+
+        // Still an immutable versioned URL. Discovery is dynamic; the URL never is.
+        $this->assertStringNotContainsString('latest.js', $html);
+
+        Http::assertSent(fn ($request): bool => $request->hasHeader('X-Er-Key', 'sk_test_key_1234567890'));
+    }
+
+    #[Test]
+    public function a_configured_bundle_url_is_never_overridden(): void
+    {
+        Http::fake(['*' => Http::response(['url' => 'https://errors.stree.agency/sdk/9.9.9/sdk.js'])]);
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', 'https://errors.stree.agency/sdk/1.0.0/sdk.js');
+
+        // A site pinned to a version stays pinned.
+        $this->assertStringContainsString('sdk/1.0.0/sdk.js', app('error-reporter')->browserScripts());
+    }
+
+    #[Test]
+    public function an_unreachable_platform_never_breaks_the_page(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('platform down'));
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', null);
+
+        // Invariant 1: the stub and config still render, just without the bundle tag.
+        $html = app('error-reporter')->browserScripts();
+
+        $this->assertStringContainsString('__erConfig', $html);
+        $this->assertStringNotContainsString('<script src', $html);
+    }
+
     #[Test]
     public function the_secret_key_travels_in_the_header_never_the_body(): void
     {

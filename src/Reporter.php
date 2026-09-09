@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Stree\ErrorReporter;
 
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Stree\ErrorReporter\Jobs\SendEvent;
 use Stree\ErrorReporter\Transport\TransportInterface;
 use Throwable;
@@ -142,11 +144,48 @@ final class Reporter
                     'captureRejections' => true,
                 ],
                 'stub' => file_get_contents(__DIR__.'/../resources/stub.js') ?: '',
-                'sdkUrl' => $browser['sdk_url'] ?? null,
+                'sdkUrl' => $this->sdkUrl(),
             ])->render();
         } catch (Throwable) {
             return '';
         }
+    }
+
+    /**
+     * Where the browser bundle lives.
+     *
+     * A configured URL always wins, so a site pinned to a version stays pinned. Otherwise
+     * the platform is asked which version is current and the answer is cached for half a
+     * day. What comes back is still an immutable /sdk/x.y.z/sdk.js — only the discovery is
+     * dynamic, so a browser-side fix reaches every host app without each one being edited.
+     */
+    private function sdkUrl(): ?string
+    {
+        $configured = $this->config['browser']['sdk_url'] ?? null;
+
+        if (filled($configured)) {
+            return (string) $configured;
+        }
+
+        // A failed lookup is cached too, briefly. Without that an unreachable platform
+        // means an outbound request on every page render of the host application.
+        $url = Cache::remember('error-reporter.sdk-url', now()->addHours(12), function (): string {
+            try {
+                $response = Http::withHeaders(['X-Er-Key' => (string) ($this->config['api_key'] ?? '')])
+                    ->timeout((int) ($this->config['timeout'] ?? 3))
+                    ->acceptJson()
+                    ->get(rtrim((string) $this->config['api_url'], '/').'/api/v1/sdk');
+
+                $url = $response->successful() ? (string) $response->json('url') : '';
+
+                // Only ever a versioned bundle path.
+                return preg_match('#^https?://\S+/sdk/\d+\.\d+\.\d+/sdk\.js$#', $url) === 1 ? $url : '';
+            } catch (Throwable) {
+                return '';
+            }
+        });
+
+        return $url === '' ? null : $url;
     }
 
     /** Sends everything deferred to after-response delivery. Called by terminating(). */
