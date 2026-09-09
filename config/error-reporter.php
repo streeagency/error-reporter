@@ -56,7 +56,17 @@ return [
     'browser' => [
         'enabled' => env('ERROR_REPORTER_BROWSER', false),
         'public_key' => env('ERROR_REPORTER_PUBLIC_KEY'),
-        // Immutable versioned URL, never a mutable latest.js.
+
+        // Leave this unset. The package asks the platform which version is current and
+        // loads that, so a browser-side fix reaches this app without a deploy — which is
+        // the only way a fix reaches a dozen installs at all.
+        //
+        // What comes back is still an immutable /sdk/x.y.z/sdk.js; only the DISCOVERY is
+        // dynamic. There is deliberately no mutable latest.js: it would be cached
+        // inconsistently across clients and could never carry an integrity hash.
+        //
+        // Set it only to hold this app on one exact version — it will then stay there
+        // through every later fix.
         'sdk_url' => env('ERROR_REPORTER_SDK_URL'),
     ],
 ];
