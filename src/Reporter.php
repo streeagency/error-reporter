@@ -142,6 +142,10 @@ final class Reporter
                     'release' => $this->config['release'] ?? null,
                     'captureExceptions' => true,
                     'captureRejections' => true,
+
+                    // Defaults to false in the SDK, so the widget offers no screenshot
+                    // unless this is sent. The platform owns it, per project.
+                    'screenshot' => $this->screenshotsEnabled(),
                 ],
                 'stub' => file_get_contents(__DIR__.'/../resources/stub.js') ?: '',
                 'sdkUrl' => $this->sdkUrl(),
@@ -159,6 +163,19 @@ final class Reporter
      * day. What comes back is still an immutable /sdk/x.y.z/sdk.js — only the discovery is
      * dynamic, so a browser-side fix reaches every host app without each one being edited.
      */
+    /**
+     * Whether this app may attach screenshots to a report.
+     *
+     * The PLATFORM decides, per project (invariant 10). Asking beats keeping a local copy
+     * of the switch: two copies of one setting disagree eventually, and the one that
+     * matters is the one the upload endpoint enforces — so a local "on" would show the
+     * reporter a capture, ask them to confirm it, and then drop it.
+     */
+    private function screenshotsEnabled(): bool
+    {
+        return (bool) ($this->discovery()['screenshot'] ?? false);
+    }
+
     private function sdkUrl(): ?string
     {
         $configured = $this->config['browser']['sdk_url'] ?? null;
@@ -167,25 +184,45 @@ final class Reporter
             return (string) $configured;
         }
 
-        // A failed lookup is cached too, briefly. Without that an unreachable platform
-        // means an outbound request on every page render of the host application.
-        $url = Cache::remember('error-reporter.sdk-url', now()->addHours(12), function (): string {
+        $url = (string) ($this->discovery()['url'] ?? '');
+
+        return $url === '' ? null : $url;
+    }
+
+    /**
+     * What the platform says about the browser bundle: which version, and whether this
+     * project may attach screenshots.
+     *
+     * A failed lookup is cached too, briefly. Without that an unreachable platform means
+     * an outbound request on every page render of the host application.
+     *
+     * @return array{url?: string, screenshot?: bool}
+     */
+    private function discovery(): array
+    {
+        return Cache::remember('error-reporter.sdk-discovery', now()->addHours(12), function (): array {
             try {
                 $response = Http::withHeaders(['X-Er-Key' => (string) ($this->config['api_key'] ?? '')])
                     ->timeout((int) ($this->config['timeout'] ?? 3))
                     ->acceptJson()
                     ->get(rtrim((string) $this->config['api_url'], '/').'/api/v1/sdk');
 
-                $url = $response->successful() ? (string) $response->json('url') : '';
+                if (! $response->successful()) {
+                    return [];
+                }
+
+                $url = (string) $response->json('url');
 
                 // Only ever a versioned bundle path.
-                return preg_match('#^https?://\S+/sdk/\d+\.\d+\.\d+/sdk\.js$#', $url) === 1 ? $url : '';
+                if (preg_match('#^https?://\S+/sdk/\d+\.\d+\.\d+/sdk\.js$#', $url) !== 1) {
+                    return [];
+                }
+
+                return ['url' => $url, 'screenshot' => (bool) $response->json('screenshot')];
             } catch (Throwable) {
-                return '';
+                return [];
             }
         });
-
-        return $url === '' ? null : $url;
     }
 
     /** Sends everything deferred to after-response delivery. Called by terminating(). */

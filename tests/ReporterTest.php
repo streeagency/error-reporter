@@ -55,6 +55,7 @@ final class ReporterTest extends TestCase
         Http::fake(['*/api/v1/sdk' => Http::response([
             'version' => '1.0.2',
             'url' => 'https://errors.stree.agency/sdk/1.0.2/sdk.js',
+            'screenshot' => true,
         ])]);
 
         config()->set('error-reporter.browser.enabled', true);
@@ -69,6 +70,28 @@ final class ReporterTest extends TestCase
         $this->assertStringNotContainsString('latest.js', $html);
 
         Http::assertSent(fn ($request): bool => $request->hasHeader('X-Er-Key', 'sk_test_key_1234567890'));
+
+        // The platform said screenshots are on for this project, so the widget may offer
+        // one. The SDK default is false, so without this the reporter has no way to
+        // attach the thing that makes a bug report legible.
+        $this->assertStringContainsString('"screenshot":true', $html);
+    }
+
+    #[Test]
+    public function screenshots_stay_off_when_the_platform_says_so(): void
+    {
+        Http::fake(['*/api/v1/sdk' => Http::response([
+            'url' => 'https://errors.stree.agency/sdk/1.0.2/sdk.js',
+            'screenshot' => false,
+        ])]);
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', null);
+
+        // Invariant 10: opt-in per project. Offering a capture the platform will refuse
+        // shows the reporter a preview, asks them to confirm it, then drops it.
+        $this->assertStringContainsString('"screenshot":false', app('error-reporter')->browserScripts());
     }
 
     #[Test]
