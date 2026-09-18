@@ -146,6 +146,10 @@ final class Reporter
                     // Defaults to false in the SDK, so the widget offers no screenshot
                     // unless this is sent. The platform owns it, per project.
                     'screenshot' => $this->screenshotsEnabled(),
+
+                    // Same reasoning as screenshots: the platform owns the switch, per
+                    // project, and a local copy would offer a button the endpoint refuses.
+                    'aiEnabled' => $this->aiEnabled(),
                 ],
                 'stub' => file_get_contents(__DIR__.'/../resources/stub.js') ?: '',
                 'sdkUrl' => $this->sdkUrl(),
@@ -176,6 +180,18 @@ final class Reporter
         return (bool) ($this->discovery()['screenshot'] ?? false);
     }
 
+    /**
+     * Whether this app may offer the "Improve with AI" button on the report widget.
+     *
+     * The PLATFORM decides, per project, same reasoning as screenshotsEnabled(): the key
+     * that makes the call live server-side, not here, so a local copy of this switch could
+     * only ever be wrong in the direction of showing a button the endpoint then refuses.
+     */
+    private function aiEnabled(): bool
+    {
+        return (bool) ($this->discovery()['ai_enabled'] ?? false);
+    }
+
     private function sdkUrl(): ?string
     {
         $configured = $this->config['browser']['sdk_url'] ?? null;
@@ -196,7 +212,7 @@ final class Reporter
      * A failed lookup is cached too, briefly. Without that an unreachable platform means
      * an outbound request on every page render of the host application.
      *
-     * @return array{url?: string, screenshot?: bool}
+     * @return array{url?: string, screenshot?: bool, ai_enabled?: bool}
      */
     private function discovery(): array
     {
@@ -218,7 +234,11 @@ final class Reporter
                     return [];
                 }
 
-                return ['url' => $url, 'screenshot' => (bool) $response->json('screenshot')];
+                return [
+                    'url' => $url,
+                    'screenshot' => (bool) $response->json('screenshot'),
+                    'ai_enabled' => (bool) $response->json('ai_enabled'),
+                ];
             } catch (Throwable) {
                 return [];
             }

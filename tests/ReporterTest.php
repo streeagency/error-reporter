@@ -94,6 +94,65 @@ final class ReporterTest extends TestCase
         $this->assertStringContainsString('"screenshot":false', app('error-reporter')->browserScripts());
     }
 
+    /**
+     * Same reasoning as screenshots: the "Improve with AI" button is a per-project switch
+     * the platform owns, because the key that makes the call live server-side. A local
+     * copy of this flag could only ever be wrong in the direction of a button the endpoint
+     * then refuses.
+     */
+    #[Test]
+    public function the_ai_assist_flag_is_discovered_from_the_platform(): void
+    {
+        Http::fake(['*/api/v1/sdk' => Http::response([
+            'url' => 'https://errors.stree.agency/sdk/1.0.2/sdk.js',
+            'screenshot' => false,
+            'ai_enabled' => true,
+        ])]);
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', null);
+
+        $this->assertStringContainsString('"aiEnabled":true', app('error-reporter')->browserScripts());
+    }
+
+    #[Test]
+    public function the_ai_assist_flag_defaults_to_off(): void
+    {
+        Http::fake(['*/api/v1/sdk' => Http::response([
+            'url' => 'https://errors.stree.agency/sdk/1.0.2/sdk.js',
+            'screenshot' => false,
+            // ai_enabled omitted entirely, as an older platform response would.
+        ])]);
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', null);
+
+        $this->assertStringContainsString('"aiEnabled":false', app('error-reporter')->browserScripts());
+    }
+
+    #[Test]
+    public function the_ai_assist_flag_is_cached_with_the_rest_of_discovery(): void
+    {
+        Http::fake(['*/api/v1/sdk' => Http::response([
+            'url' => 'https://errors.stree.agency/sdk/1.0.2/sdk.js',
+            'screenshot' => false,
+            'ai_enabled' => true,
+        ])]);
+
+        config()->set('error-reporter.browser.enabled', true);
+        config()->set('error-reporter.browser.public_key', 'pk_browser_key');
+        config()->set('error-reporter.browser.sdk_url', null);
+
+        app('error-reporter')->browserScripts();
+        app('error-reporter')->browserScripts();
+
+        // One discovery call serves both renders — it's the same 12h-cached lookup that
+        // already backs the bundle URL and the screenshot flag, not a second HTTP round trip.
+        Http::assertSentCount(1);
+    }
+
     #[Test]
     public function a_configured_bundle_url_is_never_overridden(): void
     {
