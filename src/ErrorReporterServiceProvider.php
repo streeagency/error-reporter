@@ -12,7 +12,7 @@ use Stree\ErrorReporter\Transport\TransportInterface;
 class ErrorReporterServiceProvider extends ServiceProvider
 {
     /** Reported as sdk.version on every event, so a bad payload is attributable to a release. */
-    public const VERSION = '1.0.2';
+    public const VERSION = '1.0.6';
 
     public function register(): void
     {
